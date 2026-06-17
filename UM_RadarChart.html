@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>UM Radar Chart</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0b1a2e;
+    font-family: 'Roboto', sans-serif;
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .panel {
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 24px;
+    padding: 20px 20px 16px;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .station-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.9);
+    text-align: center;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+
+  .score-row {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+
+  .score-value {
+    font-size: 36px;
+    font-weight: 700;
+    color: #ffffff;
+    line-height: 1;
+  }
+
+  .score-max {
+    font-size: 14px;
+    font-weight: 300;
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  .chart-wrapper {
+    position: relative;
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  canvas {
+    max-width: 100%;
+    max-height: 100%;
+  }
+
+  .placeholder {
+    color: rgba(255, 255, 255, 0.35);
+    font-size: 13px;
+    font-weight: 300;
+    text-align: center;
+    letter-spacing: 0.06em;
+  }
+</style>
+</head>
+<body>
+<div class="panel">
+  <div class="station-name" id="stationName">—</div>
+  <div class="score-row">
+    <span class="score-value" id="totalScore">—</span>
+    <span class="score-max" id="scoreMax"></span>
+  </div>
+  <div class="chart-wrapper">
+    <canvas id="radarChart"></canvas>
+    <p class="placeholder" id="placeholder">Select a station area on the map</p>
+  </div>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// Config
+// ---------------------------------------------------------------------------
+const LABELS = [
+  "Population",
+  "Employment",
+  "Avg FAR",
+  "Land Use Mix",
+  "POI Density",
+  "Walk Score",
+  "Intersection",
+  "Historic",
+  "Park",
+  "Transit Freq",
+  "Transit Cov",
+  "Sust. Commute"
+];
+
+const FIELDS = [
+  "UMS_Population",
+  "UMS_Employment",
+  "UMS_Avg_FAR",
+  "UMS_Land_Use_Mix",
+  "UMS_POI_Density",
+  "UMS_Walk_Score",
+  "UMS_Intersection",
+  "UMS_Historic",
+  "UMS_Park",
+  "UMS_Transit_Freq",
+  "UMS_Transit_Cov",
+  "UMS_Sust_Commute"
+];
+
+const ACCENT       = "rgba(40, 172, 216, 1)";
+const FILL         = "rgba(152, 211, 225, 0.18)";
+const GRID_COLOR   = "rgba(98, 175, 208, 0.5)";
+const ANGLE_COLOR  = "rgba(255, 255, 255, 0.15)";
+const LABEL_COLOR  = "rgba(255, 255, 255, 0.75)";
+
+// ---------------------------------------------------------------------------
+// Chart setup
+// ---------------------------------------------------------------------------
+Chart.register(ChartDataLabels);
+
+const ctx = document.getElementById("radarChart").getContext("2d");
+const chart = new Chart(ctx, {
+  type: "radar",
+  data: {
+    labels: LABELS,
+    datasets: [{
+      data: new Array(12).fill(0),
+      borderColor: ACCENT,
+      backgroundColor: FILL,
+      pointBackgroundColor: ACCENT,
+      pointBorderColor: "rgba(255,255,255,0.6)",
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      borderWidth: 1.5
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: true,
+    animation: { duration: 800, easing: "easeOutQuart" },
+    layout: { padding: 8 },
+    scales: {
+      r: {
+        min: 0,
+        max: 10,
+        grid: { circular: true, color: GRID_COLOR, lineWidth: 0.8 },
+        angleLines: { display: true, color: ANGLE_COLOR, lineWidth: 0.8 },
+        ticks: { display: false, stepSize: 2 },
+        pointLabels: {
+          color: LABEL_COLOR,
+          font: { family: "'Roboto', sans-serif", size: 11, weight: "400" },
+          padding: 4
+        }
+      }
+    },
+    plugins: {
+      legend: { display: false },
+      tooltip: { enabled: false },
+      datalabels: {
+        color: "rgba(255,255,255,0.9)",
+        font: { family: "'Roboto', sans-serif", size: 11, weight: "700" },
+        align: "center",
+        anchor: "center",
+        formatter: v => (v > 0 ? v : "")
+      }
+    }
+  }
+});
+
+// ---------------------------------------------------------------------------
+// URL parameter reader
+// Called by Experience Builder Embed widget via src URL params OR postMessage
+// ---------------------------------------------------------------------------
+function parseURLParams() {
+  const p = new URLSearchParams(window.location.search);
+  const name   = p.get("name")  || p.get("NAME")  || null;
+  const total  = p.get("total") || p.get("UM_Score") || null;
+  const scores = FIELDS.map(f => {
+    const v = p.get(f);
+    return v !== null ? parseInt(v, 10) : null;
+  });
+  if (scores.some(v => v !== null)) {
+    updateChart(name, total, scores);
+  }
+}
+
+// Experience Builder sends data via postMessage when a feature is selected
+window.addEventListener("message", function(event) {
+  const d = event.data;
+  if (!d || typeof d !== "object") return;
+
+  // Support both direct field objects and AGOL feature attribute wrappers
+  const attrs = d.attributes || d.feature?.attributes || d;
+
+  const name  = attrs.name  || attrs.NAME  || attrs.StationName || attrs.STATION_NAME || null;
+  const total = attrs.UM_Score ?? attrs.um_score ?? null;
+  const scores = FIELDS.map(f => {
+    const v = attrs[f] ?? attrs[f.toLowerCase()] ?? null;
+    return v !== null ? parseInt(v, 10) : null;
+  });
+
+  if (scores.some(v => v !== null)) {
+    updateChart(name, total, scores);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Update chart + UI
+// ---------------------------------------------------------------------------
+function updateChart(name, total, scores) {
+  const placeholder = document.getElementById("placeholder");
+  const canvas      = document.getElementById("radarChart");
+
+  placeholder.style.display = "none";
+  canvas.style.display      = "block";
+  canvas.style.opacity      = "1";
+
+  // Station name
+  document.getElementById("stationName").textContent =
+    name ? name.toUpperCase() : "STATION AREA";
+
+  // Total score
+  const totalInt = total !== null ? parseInt(total, 10) : scores.reduce((a, b) => a + (b || 0), 0);
+  document.getElementById("totalScore").textContent = totalInt;
+  document.getElementById("scoreMax").textContent   = "/ 120";
+
+  // Radar data — replace null with 0 for rendering
+  chart.data.datasets[0].data = scores.map(v => v ?? 0);
+  chart.update();
+}
+
+// ---------------------------------------------------------------------------
+// Init
+// ---------------------------------------------------------------------------
+document.addEventListener("DOMContentLoaded", function() {
+  // Try URL params first — if data present, show it
+  const p = new URLSearchParams(window.location.search);
+  const hasData = FIELDS.some(f => p.get(f) !== null);
+  if (hasData) {
+    parseURLParams();
+  } else {
+    // Show placeholder chart with demo data so panel is never blank
+    updateChart("Select a Station", 60, [5,5,5,5,5,5,5,5,5,5,5,5]);
+    document.getElementById("totalScore").textContent = "—";
+    document.getElementById("scoreMax").textContent = "";
+    document.getElementById("stationName").textContent = "Select a Station Area";
+    // Dim the chart slightly to signal it's not real data
+    document.getElementById("radarChart").style.opacity = "0.35";
+  }
+});
+</script>
+</body>
+</html>
